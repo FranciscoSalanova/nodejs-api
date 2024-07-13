@@ -1,8 +1,7 @@
 const http = require("http")
 const url = require("url")
 const StringDecoder = require("string_decoder").StringDecoder
-
-const PORT = 3000
+const config = require("./config")
 
 const server = http.createServer((req, res) => {
   const parsedUrl = url.parse(req.url, true)
@@ -21,12 +20,47 @@ const server = http.createServer((req, res) => {
   req.on("end", () => {
     buffer += decoder.end()
 
-    console.log(`Request received with the following payload:`, buffer)
+    const chosenHandler =
+      typeof router[trimmedPath] !== "undefined"
+        ? router[trimmedPath]
+        : handlers.notFound
 
-    res.end("Hello world!")
+    const data = {
+      trimmedPath: trimmedPath,
+      queryStringObject: queryStringObject,
+      method: method,
+      headers: headers,
+      payload: buffer,
+    }
+
+    chosenHandler(data, (statusCode, payload) => {
+      statusCode = typeof statusCode === "number" ? statusCode : 200
+      payload = typeof payload === "object" ? payload : {}
+
+      const payloadString = JSON.stringify(payload)
+
+      res.setHeader("Content-Type", "application/json")
+      res.writeHead(statusCode)
+      res.end(payloadString)
+
+      console.log(`Returning the response: ${statusCode}, ${payloadString}`)
+    })
   })
 })
 
-server.listen(PORT, () => {
-  console.log(`Listening on port ${PORT}`)
+server.listen(config.port, () => {
+  console.log(`Listening on port ${config.port} in ${config.envName} mode`)
 })
+
+const handlers = {
+  sample: (data, callback) => {
+    callback(406, { name: "sample handler" })
+  },
+  notFound: (data, callback) => {
+    callback(404)
+  },
+}
+
+const router = {
+  sample: handlers.sample,
+}
